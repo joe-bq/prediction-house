@@ -1,0 +1,49 @@
+services:
+  house-prediction:
+    build:
+      context: ./house-prediction
+    container_name: house-prediction
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  property-estimator-api:
+    build:
+      context: ./services/python/property-estimator
+    container_name: property-estimator-api
+    environment:
+      HOUSE_PREDICTION_URL: http://house-prediction:8000
+    ports:
+      - "8001:8001"
+    depends_on:
+      house-prediction:
+        condition: service_healthy
+
+  property-market-api:
+    build:
+      context: ./services/java/property-market-service
+    container_name: property-market-api
+    environment:
+      HOUSE_PREDICTION_URL: http://house-prediction:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      house-prediction:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ./portal
+    container_name: portal
+    environment:
+      NEXT_PUBLIC_PROPERTY_ESTIMATOR_URL: http://localhost:8001
+      NEXT_PUBLIC_MARKET_ANALYSIS_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - property-estimator-api
+      - property-market-api
