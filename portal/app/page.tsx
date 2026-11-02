@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+// data for the application cards displayed on the landing page
 const appCards = [
   {
     title: "Property Value Estimator",
@@ -24,6 +25,7 @@ const appCards = [
   },
 ];
 
+// home page
 export default function HomePage() {
   return (
     <div className="landing-page">

@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// data for nav items
 const navItems = [
   { href: "/", label: "Overview" },
   { href: "/property-estimator", label: "Property Estimator" },
   { href: "/market-analysis", label: "Market Analysis" },
 ];
 
+// nav component for the portal shell
+// renders the top navigation bar with active link highlighting based on the current pathname
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 

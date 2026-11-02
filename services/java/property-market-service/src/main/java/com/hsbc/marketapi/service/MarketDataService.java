@@ -4,9 +4,19 @@ import com.hsbc.marketapi.model.MarketProperty;
 import com.hsbc.marketapi.model.MarketSummary;
 import com.hsbc.marketapi.model.WhatIfRequest;
 import com.hsbc.marketapi.model.WhatIfResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -16,7 +26,15 @@ import java.util.stream.Collectors;
 @Service
 public class MarketDataService {
     private final Map<String, MarketSummary> summaryCache = new ConcurrentHashMap<>();
+    private final RestTemplate restTemplate;
+    private final String housePredictionUrl;
 
+    public MarketDataService(RestTemplateBuilder restTemplateBuilder, @Value("${house.prediction.url:http://house-prediction:8000}") String housePredictionUrl) {
+        this.restTemplate = restTemplateBuilder.build();
+        this.housePredictionUrl = housePredictionUrl;
+    }
+
+    // simulated list of market properties
     private final List<MarketProperty> properties = List.of(
             new MarketProperty("PH-101", "Austin", "Downtown", "Premium", "Large", 642000, 1820, 3, 2, 8.4),
             new MarketProperty("PH-102", "Austin", "North Loop", "Mid", "Medium", 515000, 1640, 3, 2, 6.1),
@@ -66,10 +84,87 @@ public class MarketDataService {
                 .average()
                 .orElse(0.0);
 
+        Map<String, Object> payload = buildHousePredictionPayload(request, currentAverage);
+
+        // call the house prediction service with the constructed payload
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    housePredictionUrl + "/predict",
+                    HttpMethod.POST,
+                    entity,
+                    Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Object predictionValue = response.getBody().get("prediction");
+                if (predictionValue instanceof Number number) {
+                    double projectedPrice = number.doubleValue();
+                    double delta = projectedPrice - currentAverage;
+                    String recommendation = delta > 0
+                            ? "Accelerate pricing and highlight premium finishes."
+                            : "Consider competitive concessions to improve absorption.";
+                    return new WhatIfResponse(request.location(), round(currentAverage), round(projectedPrice), round(delta), recommendation);
+                }
+            }
+        } catch (RestClientException ignored) {
+            // fall back to a simulated calculation if the model service is unavailable
+        }
+
         double projectedPrice = currentAverage * (1 + request.priceDeltaPct() / 100.0);
         double delta = projectedPrice - currentAverage;
         String recommendation = delta > 0 ? "Accelerate pricing and highlight premium finishes." : "Consider competitive concessions to improve absorption.";
         return new WhatIfResponse(request.location(), round(currentAverage), round(projectedPrice), round(delta), recommendation);
+    }
+
+    // build the payload for the house prediction service based on the request and current average price
+    // NOTE: hard-coded values for certain property attributes based on location and current average price
+    private Map<String, Object> buildHousePredictionPayload(WhatIfRequest request, double currentAverage) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("square_footage", request.squareFootage());
+        payload.put("bedrooms", request.bedrooms());
+        payload.put("bathrooms", request.bathrooms());
+        payload.put("year_built", determineYearBuilt(request.location(), currentAverage));
+        payload.put("lot_size", determineLotSize(request.location(), request.squareFootage()));
+        payload.put("distance_to_city_center", determineDistanceToCityCenter(request.location()));
+        payload.put("school_rating", determineSchoolRating(request.location(), request.priceTier()));
+        return payload;
+    }
+
+    private int determineYearBuilt(String location, double currentAverage) {
+        if (location.equalsIgnoreCase("Austin")) return 2012;
+        if (location.equalsIgnoreCase("Seattle")) return 2009;
+        if (location.equalsIgnoreCase("Boston")) return 2006;
+        if (location.equalsIgnoreCase("Denver")) return 2014;
+        if (location.equalsIgnoreCase("Miami")) return 2011;
+        return currentAverage > 700000 ? 2008 : 2015;
+    }
+
+    private double determineLotSize(String location, double squareFootage) {
+        double base = squareFootage * 2.2;
+        if (location.equalsIgnoreCase("Boston")) return base * 2.1;
+        if (location.equalsIgnoreCase("Miami")) return base * 1.8;
+        return base;
+    }
+
+    private double determineDistanceToCityCenter(String location) {
+        if (location.equalsIgnoreCase("Austin")) return 8.5;
+        if (location.equalsIgnoreCase("Seattle")) return 10.2;
+        if (location.equalsIgnoreCase("Boston")) return 6.4;
+        if (location.equalsIgnoreCase("Denver")) return 9.7;
+        if (location.equalsIgnoreCase("Miami")) return 7.8;
+        return 9.0;
+    }
+
+    private double determineSchoolRating(String location, String priceTier) {
+        if (location.equalsIgnoreCase("Boston")) return 9.2;
+        if (location.equalsIgnoreCase("Seattle")) return 8.8;
+        if (location.equalsIgnoreCase("Austin")) return 8.4;
+        if (location.equalsIgnoreCase("Miami")) return 8.1;
+        if (location.equalsIgnoreCase("Denver")) return 8.6;
+        return priceTier != null && priceTier.equalsIgnoreCase("Luxury") ? 9.6 : 8.2;
     }
 
     public String exportCsv() {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+// type definition for the property estimator form and estimate records
 type FormState = {
   square_footage: number;
   bedrooms: number;
@@ -29,6 +30,7 @@ const initialForm: FormState = {
   school_rating: 8.6,
 };
 
+// fallback history for property estimates
 const defaultHistory: EstimateRecord[] = [
   { date: "Mar 2024", value: 475000, confidence: "High" },
   { date: "Apr 2024", value: 489000, confidence: "High" },
@@ -48,6 +50,7 @@ const fallbackPrediction = (input: FormState) => {
 };
 
 export default function PropertyEstimatorPage() {
+  // state for the property estimator form, result, history, and error message
   const [form, setForm] = useState<FormState>(initialForm);
   const [result, setResult] = useState<{ prediction: number; currency: string; confidence: string; source: string } | null>(null);
   const [history, setHistory] = useState<EstimateRecord[]>(() => {
@@ -56,6 +59,7 @@ export default function PropertyEstimatorPage() {
     }
 
     try {
+      // attempt to load saved estimate history from local storage
       const saved = window.localStorage.getItem("property-estimator-history");
       if (!saved) {
         return defaultHistory;
@@ -67,7 +71,7 @@ export default function PropertyEstimatorPage() {
     }
   });
   const [error, setError] = useState<string | null>(null);
-
+  // memoized data for comparison chart (current property vs peers)
   const comparisonData = useMemo(
     () => [
       { name: "Current", value: result?.prediction ?? fallbackPrediction(form) },
@@ -94,6 +98,7 @@ export default function PropertyEstimatorPage() {
     };
 
     try {
+      // base url to python validator service
       const baseUrl = process.env.NEXT_PUBLIC_PROPERTY_ESTIMATOR_URL || "http://localhost:8001";
       const response = await fetch(`${baseUrl}/api/estimate`, {
         method: "POST",
@@ -120,6 +125,7 @@ export default function PropertyEstimatorPage() {
       window.localStorage.setItem("property-estimator-history", JSON.stringify(nextHistory));
       return;
     } catch (fetchError) {
+      // in case of error, fallback to demo prediction
       const fallback = fallbackPrediction(form);
       const entry = { date: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }), value: fallback, confidence: "Moderate" };
       const nextHistory = [entry, ...history].slice(0, 5);

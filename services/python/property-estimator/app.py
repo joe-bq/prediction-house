@@ -10,12 +10,14 @@ from pydantic import BaseModel, Field, field_validator
 
 app = FastAPI(title="Property Estimator API", version="1.0.0")
 
+# allow CORS (Cross-Origin Resource Sharing)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+# URL for the house price prediction model service
 MODEL_URL = os.getenv("HOUSE_PREDICTION_URL", "http://localhost:8000")
 
 
@@ -60,6 +62,7 @@ def _fallback_prediction(payload: PropertyEstimateInput) -> float:
     return max(base, 65000.0)
 
 
+# attempt to get prediction from the model service, fallback to local calculation if needed
 def _try_model_prediction(payload: PropertyEstimateInput) -> dict[str, Any]:
     try:
         response = requests.post(
@@ -89,7 +92,7 @@ def _try_model_prediction(payload: PropertyEstimateInput) -> dict[str, Any]:
             "source": "local-fallback",
         }
 
-
+# endpoint to get property estimate based on input features
 @app.post("/api/estimate", response_model=PropertyEstimateResponse)
 def estimate(payload: PropertyEstimateInput) -> PropertyEstimateResponse:
     try:
