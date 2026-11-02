@@ -214,20 +214,22 @@ lightning_logs/
 .dvc/cache
 .dvc/tmp
 
-# Datasets (keep small samples by adding exceptions with "!")
-data/raw/
-data/interim/
-data/processed/
-data/external/
-*.csv
+# Datasets (keep required training data tracked for the ML service)
+# The house-prediction model reads its training CSV at runtime; keep it in source control.
+house-prediction/data/*
+!house-prediction/data/House Price Dataset.csv
+
+# Ignore transient data artifacts
+# data/raw/
+# data/interim/
+# data/processed/
+# data/external/
 *.parquet
 *.feather
 *.npy
 *.npz
 *.zip
 *.tar.gz
-# Example exception to keep a small sample dataset tracked:
-# !data/sample/*.csv
 
 # =============================================================================
 # General
